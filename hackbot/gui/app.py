@@ -17,7 +17,7 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from flask import Flask, Response, jsonify, render_template, request, stream_with_context
 
@@ -264,7 +264,7 @@ def api_chat():
 
     def generate():
         token_queue: queue.Queue = queue.Queue()
-        result_holder = [None]
+        result_holder: List[Optional[str]] = [None]
 
         def on_token(token):
             token_queue.put(token)
@@ -486,6 +486,7 @@ def api_agent_step():
     user_input = data.get("message", "")
 
     def generate():
+        assert agent is not None
         token_queue: queue.Queue = queue.Queue()
 
         def on_token(token):
@@ -498,6 +499,7 @@ def api_agent_step():
         agent.on_step = on_step
 
         def run_step():
+            assert agent is not None
             try:
                 response, is_complete = agent.step(user_input)
                 token_queue.put(("meta", {"complete": is_complete}))
@@ -801,6 +803,106 @@ def api_vulndb_risk():
     })
 
 
+# ── RAG Memory ───────────────────────────────────────────────────────────────
+
+
+@app.route("/api/memory/stats")
+def api_memory_stats():
+    """Get RAG memory statistics."""
+    from hackbot.core.rag_memory import get_rag_memory
+    rag = get_rag_memory()
+    if not rag.is_available():
+        return jsonify({"available": False, "error": "ChromaDB not installed"})
+    return jsonify(rag.stats())
+
+
+@app.route("/api/memory/search", methods=["POST"])
+def api_memory_search():
+    """Search RAG memory for relevant past context."""
+    from hackbot.core.rag_memory import get_rag_memory
+    rag = get_rag_memory()
+    if not rag.is_available():
+        return jsonify({"error": "ChromaDB not installed"}), 400
+
+    body = request.get_json(silent=True) or {}
+    query = body.get("query", "").strip()
+    if not query:
+        return jsonify({"error": "Query is required"}), 400
+
+    n_results = int(body.get("n_results", 10))
+    doc_type = body.get("doc_type")
+
+    results = rag.query(query, n_results=n_results, doc_type=doc_type)
+    return jsonify({
+        "results": [r.to_dict() for r in results],
+        "count": len(results),
+        "query": query,
+    })
+
+
+@app.route("/api/memory/clear", methods=["POST"])
+def api_memory_clear():
+    """Clear RAG memory (optionally filtered by doc_type)."""
+    from hackbot.core.rag_memory import get_rag_memory
+    rag = get_rag_memory()
+    if not rag.is_available():
+        return jsonify({"error": "ChromaDB not installed"}), 400
+
+    body = request.get_json(silent=True) or {}
+    doc_type = body.get("doc_type")
+
+    count = rag.clear(doc_type=doc_type)
+    return jsonify({"ok": True, "cleared": count})
+
+
+@app.route("/api/memory/context", methods=["POST"])
+def api_memory_context():
+    """Get formatted RAG context for a query (same as what gets injected into prompts)."""
+    from hackbot.core.rag_memory import get_rag_memory
+    rag = get_rag_memory()
+    if not rag.is_available():
+        return jsonify({"error": "ChromaDB not installed"}), 400
+
+    body = request.get_json(silent=True) or {}
+    query = body.get("query", "").strip()
+    if not query:
+        return jsonify({"error": "Query is required"}), 400
+
+    config: HackBotConfig = _state["config"]
+    context = rag.get_context(
+        query,
+        max_results=config.rag.max_results,
+        max_chars=config.rag.max_context_tokens * 4,
+    )
+    return jsonify({"context": context, "query": query})
+
+
+@app.route("/api/memory/import", methods=["POST"])
+def api_memory_import():
+    """Import existing JSON sessions into RAG memory."""
+    from hackbot.core.rag_memory import get_rag_memory
+    rag = get_rag_memory()
+    if not rag.is_available():
+        return jsonify({"error": "ChromaDB not installed"}), 400
+
+    memory = MemoryManager()
+    sessions = memory.list_sessions()
+    if not sessions:
+        return jsonify({"ok": True, "imported": 0, "chunks": 0})
+
+    total_chunks = 0
+    for s in sessions:
+        data = memory.load_session(s.id)
+        if data:
+            total_chunks += rag.import_session(data)
+
+    return jsonify({
+        "ok": True,
+        "imported": len(sessions),
+        "chunks": total_chunks,
+    })
+
+
 # ── Proxy / Traffic Capture ─────────────────────────────────────────────────
 
 
@@ -928,7 +1030,7 @@ def api_agent_export():
         return jsonify({"error": "No assessment data"}), 400
 
     data = request.json or {}
-    fmt = data.get("format", _state["config"].reporting.format)
+    fmt: str = str(data.get("format", _state["config"].reporting.format))
 
     reporter = ReportGenerator(
         include_raw=_state["config"].reporting.include_raw_output,
@@ -1294,7 +1396,7 @@ def api_topology_from_agent():
         return jsonify({"error": "No agent scan data available"}), 400
 
     # Combine all nmap/masscan results
-    scan_outputs = []
+    scan_outputs: List[str] = []
     for result in agent.runner.history:
         if ("nmap" in result.command.lower() or "masscan" in result.command.lower()) and result.stdout:
             scan_outputs.append(result.stdout)
@@ -1673,6 +1775,7 @@ def api_campaign_start_target():
     instructions = (campaign.instructions or "") + "\n" + campaign_ctx
 
     def run():
+        assert campaign is not None
         try:
             agent.start(target, scope=campaign.scope, instructions=instructions)
         except Exception as e:
@@ -1917,7 +2020,7 @@ def launch_gui(config: HackBotConfig, host: str = "127.0.0.1", port: int = 1337)
     # Try native desktop window via pywebview
     flask_started = False
     try:
-        import webview  # pywebview
+        import webview  # pywebview  # type: ignore[import-not-found]
 
         # ── GPU workaround for Raspberry Pi / low-end GPUs ──────────────
         # The Pi's Mesa driver doesn't expose GL_EXT_shader_texture_lod,

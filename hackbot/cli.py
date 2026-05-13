@@ -213,6 +213,8 @@ class HackBotApp:
             "/vulndb": lambda: self._handle_vulndb(args),
             "/attack": lambda: self._handle_attack(args),
             "/nvd-key": lambda: self._set_nvd_key(args),
+            "/memory": lambda: self._handle_memory(args),
+            "/recall": lambda: self._handle_recall(args),
         }
 
         handler = commands.get(cmd)
@@ -1136,6 +1138,116 @@ class HackBotApp:
             print_info("  flags          — Show flagged requests")
             print_info("  detail <id>    — Show full request/response details")
 
+        return True
+
+    # ── RAG Memory Commands ───────────────────────────────────────────────
+
+    def _handle_memory(self, args: str = "") -> bool:
+        """Handle /memory commands — manage RAG vector memory."""
+        from hackbot.core.rag_memory import get_rag_memory, DOC_CONVERSATION, DOC_FINDING, DOC_TOOL_OUTPUT, DOC_KNOWLEDGE
+
+        rag = get_rag_memory()
+        if not rag.is_available():
+            print_error(
+                "RAG memory is not available.\n"
+                "  Install ChromaDB: pip install 'chromadb>=0.5.0'\n"
+                "  Or: pip install 'hackbot[rag]'"
+            )
+            return True
+
+        parts = args.strip().split(maxsplit=1)
+        subcmd = parts[0].lower() if parts else "stats"
+        sub_args = parts[1] if len(parts) > 1 else ""
+
+        if subcmd == "stats":
+            stats = rag.stats()
+            from rich.table import Table
+            table = Table(title="RAG Memory Statistics", border_style="dim")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Value", justify="right")
+            table.add_row("Total Documents", str(stats.get("total_documents", 0)))
+            by_type = stats.get("by_type", {})
+            for dtype in [DOC_CONVERSATION, DOC_FINDING, DOC_TOOL_OUTPUT, DOC_KNOWLEDGE]:
+                table.add_row(f"  {dtype}", str(by_type.get(dtype, 0)))
+            table.add_row("Disk Size", f"{stats.get('disk_size_mb', 0):.1f} MB")
+            table.add_row("Storage Path", stats.get("persist_dir", "—"))
+            console.print(table)
+
+        elif subcmd == "search":
+            if not sub_args:
+                print_error("Usage: /memory search <query>")
+                return True
+            results = rag.query(sub_args, n_results=10)
+            if not results:
+                print_info("No matching documents found.")
+                return True
+            for i, r in enumerate(results, 1):
+                console.print(f"\n[bold cyan]#{i}[/] [{r.doc_type.upper()}] "
+                              f"(relevance: {r.score:.0%})")
+                # Show first 300 chars of the text
+                preview = r.text[:300]
+                if len(r.text) > 300:
+                    preview += "..."
+                console.print(f"[dim]{preview}[/]")
+            print_info(f"Found {len(results)} results.")
+
+        elif subcmd == "clear":
+            doc_type = sub_args.strip().lower() if sub_args else None
+            valid_types = {"conversations": DOC_CONVERSATION, "findings": DOC_FINDING,
+                           "tool_outputs": DOC_TOOL_OUTPUT, "knowledge": DOC_KNOWLEDGE}
+            if doc_type and doc_type not in valid_types:
+                print_error(f"Unknown type: {doc_type}\n  Valid: {', '.join(valid_types)}")
+                return True
+            target_type = valid_types.get(doc_type) if doc_type else None
+            label = doc_type or "all documents"
+            count = rag.clear(doc_type=target_type)
+            print_success(f"Cleared {count} {label} from RAG memory.")
+
+        elif subcmd == "import":
+            from hackbot.memory import MemoryManager
+            memory = MemoryManager()
+            sessions = memory.list_sessions()
+            if not sessions:
+                print_info("No saved sessions to import.")
+                return True
+            total = 0
+            with console.status("[cyan]Importing sessions into RAG memory..."):
+                for s in sessions:
+                    data = memory.load_session(s.id)
+                    if data:
+                        total += rag.import_session(data)
+            print_success(f"Imported {len(sessions)} sessions ({total} chunks) into RAG memory.")
+
+        else:
+            print_info(
+                "RAG Memory commands:\n"
+                "  /memory            Show memory statistics\n"
+                "  /memory search <q> Search memory for relevant context\n"
+                "  /memory clear      Clear all RAG memory\n"
+                "  /memory clear findings  Clear only findings\n"
+                "  /memory import     Import JSON sessions into RAG memory\n"
+                "  /recall <query>    Quick memory search"
+            )
+
+        return True
+
+    def _handle_recall(self, args: str = "") -> bool:
+        """Handle /recall — quick RAG memory search."""
+        if not args.strip():
+            print_error("Usage: /recall <query>")
+            return True
+
+        from hackbot.core.rag_memory import get_rag_memory
+        rag = get_rag_memory()
+        if not rag.is_available():
+            print_error("RAG memory not available. Install with: pip install 'hackbot[rag]'")
+            return True
+
+        context = rag.get_context(args.strip(), max_results=8, max_chars=5000)
+        if context:
+            console.print(Markdown(context))
+        else:
+            print_info("No relevant memories found.")
         return True
 
     def _handle_vulndb(self, args: str = "") -> bool:

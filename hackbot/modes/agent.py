@@ -30,6 +30,7 @@ from hackbot.core.engine import AIEngine, Conversation, create_conversation
 from hackbot.core.runner import ToolResult, ToolRunner
 from hackbot.core.zeroday import ZeroDayEngine
 from hackbot.core.vulndb import VulnDB
+from hackbot.core.rag_memory import get_rag_memory, RAGMemory
 from hackbot.memory import ConversationSummarizer, MemoryManager, CONTINUE_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -193,6 +194,12 @@ class AgentMode:
             keep_recent=6,
         )
 
+        # RAG vector memory (graceful fallback)
+        self.rag: RAGMemory = get_rag_memory()
+        self._rag_enabled = config.rag.enabled and self.rag.is_available()
+        if self._rag_enabled:
+            logger.debug("RAG memory active for agent mode")
+
     def start(self, target: str, scope: str = "", instructions: str = "") -> str:
         """
         Start a new assessment against a target.
@@ -257,6 +264,19 @@ class AgentMode:
                     context += plugin_desc + "\n"
             except Exception:
                 pass
+
+        # ── RAG: inject prior intelligence for this target ────────────
+        if self._rag_enabled:
+            try:
+                prior_intel = self.rag.get_target_context(
+                    target,
+                    max_results=self.config.rag.max_results + 3,
+                    max_chars=self.config.rag.max_context_tokens * 4,
+                )
+                if prior_intel:
+                    context += f"\n{prior_intel}\n"
+            except Exception as exc:
+                logger.debug("RAG target context retrieval failed: %s", exc)
 
         context += f"""
 {f'Additional Instructions: {instructions}' if instructions else ''}
@@ -836,6 +856,20 @@ Explain your reasoning at each step."""
         except Exception as exc:
             logger.debug("Zero-day enrichment failed: %s", exc)
 
+        # ── RAG: store tool output ───────────────────────────────────
+        if self._rag_enabled:
+            try:
+                self.rag.store_tool_output(
+                    command=command,
+                    stdout=result.stdout or "",
+                    stderr=result.stderr or "",
+                    target=self.target,
+                    tool=tool,
+                    success=result.success,
+                )
+            except Exception as exc:
+                logger.debug("RAG tool output store failed: %s", exc)
+
         return output, result
 
     def _save_script(self, action: Dict[str, Any], ai_analysis: str = "") -> str:
@@ -1138,6 +1172,15 @@ Explain your reasoning at each step."""
                 )
             except Exception as exc:
                 logger.warning("VulnDB: failed to store finding: %s", exc)
+
+        # ── RAG: store finding ───────────────────────────────────────
+        if self._rag_enabled:
+            try:
+                finding_data = finding.to_dict()
+                finding_data["target"] = self.target
+                self.rag.store_finding(finding_data)
+            except Exception as exc:
+                logger.debug("RAG finding store failed: %s", exc)
 
         step = AgentStep(
             step_num=len(self.steps) + 1,

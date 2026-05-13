@@ -2,19 +2,24 @@
 HackBot Chat Mode
 =================
 Interactive cybersecurity Q&A with streaming responses, conversation history,
-session management, auto-save memory, and rich terminal formatting.
+session management, auto-save memory, RAG vector recall, and rich terminal
+formatting.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from hackbot.config import HackBotConfig, SESSIONS_DIR
 from hackbot.core.engine import AIEngine, Conversation, create_conversation
+from hackbot.core.rag_memory import get_rag_memory, RAGMemory
 from hackbot.memory import ConversationSummarizer, MemoryManager, CONTINUE_PROMPT
+
+logger = logging.getLogger(__name__)
 
 
 class ChatMode:
@@ -39,6 +44,12 @@ class ChatMode:
             keep_recent=10,
         )
 
+        # RAG vector memory (graceful fallback if ChromaDB not installed)
+        self.rag: RAGMemory = get_rag_memory()
+        self._rag_enabled = config.rag.enabled and self.rag.is_available()
+        if self._rag_enabled:
+            logger.debug("RAG memory active for chat mode")
+
     def ask(
         self,
         question: str,
@@ -46,6 +57,19 @@ class ChatMode:
         on_token: Optional[Callable[[str], None]] = None,
     ) -> str:
         """Ask a cybersecurity question."""
+        # ── RAG: inject relevant past context ────────────────────────────
+        if self._rag_enabled:
+            try:
+                rag_context = self.rag.get_context(
+                    question,
+                    max_results=self.config.rag.max_results,
+                    max_chars=self.config.rag.max_context_tokens * 4,
+                )
+                if rag_context:
+                    self.conversation.add("system", rag_context)
+            except Exception as exc:
+                logger.debug("RAG context retrieval failed: %s", exc)
+
         self.conversation.add("user", question)
 
         # Summarize if conversation is getting too long
@@ -60,6 +84,20 @@ class ChatMode:
 
         self.conversation.add("assistant", response)
         self._last_response = response
+
+        # ── RAG: store exchange ──────────────────────────────────────────
+        if self._rag_enabled:
+            try:
+                self.rag.store_conversation(
+                    "user", question,
+                    session_id=self.session_id, mode="chat",
+                )
+                self.rag.store_conversation(
+                    "assistant", response,
+                    session_id=self.session_id, mode="chat",
+                )
+            except Exception as exc:
+                logger.debug("RAG store failed: %s", exc)
 
         # Detect if response was likely truncated (ends mid-sentence)
         self._was_truncated = self._detect_truncation(response)
@@ -191,3 +229,10 @@ class ChatMode:
         """Get a summary of the current conversation context."""
         user_msgs = [m for m in self.conversation.messages if m.role == "user"]
         return f"Chat session with {len(user_msgs)} exchanges"
+
+    def recall(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
+        """Explicit memory search — used by /recall command."""
+        if not self._rag_enabled:
+            return []
+        results = self.rag.query(query, n_results=n_results)
+        return [r.to_dict() for r in results]

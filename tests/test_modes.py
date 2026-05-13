@@ -89,7 +89,7 @@ def test_process_actions_loop_skips_same_round_duplicates(mock_agent):
     # We only care about the single-round processing here, so mock Chat to stop the loop
     mock_agent.engine.chat.return_value = '{"action": "complete"}'
     
-    mock_agent._process_actions_loop(actions, max_rounds=2)
+    mock_agent._process_actions_loop("Mocked AI response", actions, max_rounds=2)
     
     # execute_action should only be called once, the others are deduplicated in same round
     assert mock_agent._execute_action.call_count == 1
@@ -104,7 +104,7 @@ def test_process_actions_loop_skips_session_duplicates(mock_agent):
     actions = [
         {"action": "execute", "command": "echo test"},
     ]
-    mock_agent._process_actions_loop(actions, max_rounds=2)
+    mock_agent._process_actions_loop("Mocked AI response", actions, max_rounds=2)
     
     # Should be skipped entirely
     mock_agent._execute_action.assert_not_called()

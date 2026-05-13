@@ -150,6 +150,13 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "token": "",
         "session_ttl_days": 7,
     },
+    "rag": {
+        "enabled": True,
+        "max_results": 5,
+        "max_context_tokens": 1500,
+        "chunk_size": 500,
+        "chunk_overlap": 50,
+    },
 }
 
 
@@ -197,12 +204,22 @@ class TelegramConfig:
 
 
 @dataclass
+class RAGConfig:
+    enabled: bool = True
+    max_results: int = 5
+    max_context_tokens: int = 1500
+    chunk_size: int = 500
+    chunk_overlap: int = 50
+
+
+@dataclass
 class HackBotConfig:
     ai: AIConfig = field(default_factory=AIConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
     ui: UIConfig = field(default_factory=UIConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
+    rag: RAGConfig = field(default_factory=RAGConfig)
 
 
 def load_config() -> HackBotConfig:
@@ -294,6 +311,7 @@ def load_config() -> HackBotConfig:
         reporting=ReportingConfig(**merged.get("reporting", {})),
         ui=UIConfig(**merged.get("ui", {})),
         telegram=TelegramConfig(**merged.get("telegram", {})),
+        rag=RAGConfig(**merged.get("rag", {})),
     )
     return cfg
 
@@ -334,6 +352,13 @@ def save_config(cfg: HackBotConfig) -> None:
         "telegram": {
             "token": cfg.telegram.token,
             "session_ttl_days": cfg.telegram.session_ttl_days,
+        },
+        "rag": {
+            "enabled": cfg.rag.enabled,
+            "max_results": cfg.rag.max_results,
+            "max_context_tokens": cfg.rag.max_context_tokens,
+            "chunk_size": cfg.rag.chunk_size,
+            "chunk_overlap": cfg.rag.chunk_overlap,
         },
     }
     with open(CONFIG_FILE, "w") as f:

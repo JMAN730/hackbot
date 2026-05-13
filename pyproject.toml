@@ -64,6 +64,9 @@ telegram = [
     "python-telegram-bot>=21.0",
     "qrcode[pil]>=7.4",
 ]
+rag = [
+    "chromadb>=0.5.0",
+]
 all = [
     "flask>=3.0",
     "pywebview>=5.0",
@@ -79,6 +82,7 @@ all = [
     "lxml>=5.1",
     "python-telegram-bot>=21.0",
     "qrcode[pil]>=7.4",
+    "chromadb>=0.5.0",
 ]
 
 [project.scripts]
