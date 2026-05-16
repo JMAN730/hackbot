@@ -12,7 +12,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 [![Tests](https://img.shields.io/badge/tests-724%20passing-brightgreen.svg)]()
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yashab-cyber/hackbot/blob/main/examples/HackBot_Colab.ipynb)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/X2tgYHXYq)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/ustvByS8eT)
 
 [Features](#-features) • [Screenshots](#-screenshots) • [GUI](#%EF%B8%8F-native-desktop-gui) • [Install](#-installation) • [Quick Start](#-quick-start) • [Modes](#-modes) • [Intelligence](#%EF%B8%8F-intelligence-modules) • [Providers](#-ai-providers) • [Config](#%EF%B8%8F-configuration) • [Docker](#-docker) • [Colab](#-run-on-google-colab) • [Discord](#-community)
 
