@@ -1,5 +1,6 @@
 """Tests for HackBot Tool Runner."""
 
+import asyncio
 import platform
 import pytest
 
@@ -271,3 +272,109 @@ def test_validate_sudo_only_no_tool():
     r = ToolRunner(allowed_tools=["nmap"], timeout=10)
     is_safe, reason = r.validate_command("sudo -n")
     assert not is_safe
+
+
+# ── Shell-free execution & metacharacter rejection ──
+
+
+def test_windows_exec_is_shell_free(runner, monkeypatch):
+    """execute() must never spawn a shell (guards against shell=is_windows)."""
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, *args, **kwargs):
+            captured["shell"] = kwargs.get("shell")
+            self.returncode = 0
+
+        def communicate(self, input=None, timeout=None):
+            return ("ok", "")
+
+    monkeypatch.setattr("hackbot.core.runner.subprocess.Popen", FakePopen)
+    runner.execute("echo hi", tool_name="echo")
+    assert captured["shell"] is False
+
+
+def test_validate_rejects_semicolon_operator(runner):
+    """Command chaining with ';' is rejected as a shell metacharacter."""
+    is_safe, reason = runner.validate_command("echo a ; echo b")
+    assert not is_safe
+    assert "metacharacter" in reason.lower()
+    assert "';'" in reason
+
+
+def test_validate_rejects_pipe_operator(runner):
+    """A pipe operator token is rejected."""
+    is_safe, reason = runner.validate_command("nmap 127.0.0.1 | grep open")
+    assert not is_safe
+    assert "|" in reason
+
+
+def test_validate_rejects_and_operator(runner):
+    """Logical-and chaining is rejected."""
+    is_safe, reason = runner.validate_command("echo a && echo b")
+    assert not is_safe
+    assert "&&" in reason
+
+
+def test_validate_rejects_redirect_operator(runner):
+    """Output redirection is rejected."""
+    is_safe, reason = runner.validate_command("nmap 127.0.0.1 > /tmp/out")
+    assert not is_safe
+    assert ">" in reason
+
+
+def test_validate_rejects_command_substitution_dollar_paren(runner):
+    """$(...) command substitution is rejected."""
+    is_safe, reason = runner.validate_command("nmap $(whoami)")
+    assert not is_safe
+    assert "$(" in reason
+
+
+def test_validate_rejects_embedded_backticks(runner):
+    """Embedded backtick substitution is rejected (distinct from wrapping backticks)."""
+    is_safe, reason = runner.validate_command("nmap `whoami`")
+    assert not is_safe
+    assert "`" in reason
+
+
+def test_validate_allows_url_with_ampersand(runner):
+    """A URL with '&'/'?'/'=' in a quoted arg is NOT flagged (token-based check)."""
+    is_safe, reason = runner.validate_command("curl 'http://example.com/?a=1&b=2'")
+    assert is_safe
+    assert reason == "OK"
+    is_safe2, _ = runner.validate_command('curl "http://example.com/?x=1&y=2"')
+    assert is_safe2
+
+
+def test_validate_rejects_unbalanced_quotes(runner):
+    """Unbalanced quotes are rejected gracefully (no crash)."""
+    is_safe, reason = runner.validate_command('nmap "unclosed')
+    assert not is_safe
+    assert "unbalanced" in reason.lower()
+
+
+def test_chained_command_does_not_execute_second_half(runner, tmp_path):
+    """The executor is shell-free: a chained command never runs its second half."""
+    if platform.system() == "Windows":
+        pytest.skip("POSIX-only shell-free proof")
+    sentinel = tmp_path / "pwned"
+    result = runner.execute(f"echo hi ; touch {sentinel}", tool_name="echo")
+    # Blocked at validation, and the second command never ran.
+    assert result.return_code == -1
+    assert "metacharacter" in result.stderr.lower()
+    assert not sentinel.exists()
+
+
+def test_exec_does_not_interpolate_shell_variables(runner):
+    """Content that passes validation is still not shell-interpolated."""
+    if platform.system() == "Windows":
+        pytest.skip("POSIX-only shell-free proof")
+    result = runner.execute("echo $HOME", tool_name="echo")
+    assert "$HOME" in result.stdout  # literal, not expanded
+
+
+def test_execute_async_parity_blocked(runner):
+    """execute_async runs validation and is shell-free (rejects chaining)."""
+    result = asyncio.run(runner.execute_async("echo a ; echo b"))
+    assert result.return_code == -1
+    assert "metacharacter" in result.stderr.lower()
