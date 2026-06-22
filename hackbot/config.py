@@ -54,6 +54,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "sudo_mode": False,
         "sudo_password": "",
         "nvd_api_key": "",
+        "allow_arbitrary_install": False,
         "allowed_tools": [
             "nmap",
             "masscan",
@@ -134,6 +135,13 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "php",
             "gcc",
             "go",
+            # Package managers — used by ToolInstaller as install drivers only.
+            "apt-get",
+            "dnf",
+            "pacman",
+            "brew",
+            "pipx",
+            "pip",
         ],
     },
     "reporting": {
@@ -181,7 +189,10 @@ class AgentConfig:
     sudo_mode: bool = False
     sudo_password: str = ""
     nvd_api_key: str = ""
-    allowed_tools: List[str] = field(default_factory=lambda: DEFAULT_CONFIG["agent"]["allowed_tools"])
+    allow_arbitrary_install: bool = False
+    allowed_tools: List[str] = field(
+        default_factory=lambda: DEFAULT_CONFIG["agent"]["allowed_tools"]
+    )
 
 
 @dataclass
@@ -397,6 +408,7 @@ def save_config(cfg: HackBotConfig) -> None:
             "sudo_mode": cfg.agent.sudo_mode,
             "sudo_password": cfg.agent.sudo_password,
             "nvd_api_key": cfg.agent.nvd_api_key,
+            "allow_arbitrary_install": cfg.agent.allow_arbitrary_install,
             "allowed_tools": cfg.agent.allowed_tools,
         },
         "reporting": {
@@ -465,6 +477,7 @@ def _merge_allowed_tools(current: List[str], defaults: List[str]) -> List[str]:
 
 # ── tool detection ───────────────────────────────────────────────────────────
 
+
 def detect_platform() -> Dict[str, str]:
     """Return platform information."""
     return {
@@ -504,6 +517,65 @@ TOOL_ALIASES: Dict[str, List[str]] = {
         "redir6",
         "smurf6",
     ],
+}
+
+# Curated tool -> package recipes for autonomous installation.
+# `order` lists preferred managers; ToolInstaller picks the first one available
+# on the host. Per-manager values are the package/module identifier for that
+# manager. Only tools also present in agent.allowed_tools are installable.
+TOOL_INSTALL_MAP: Dict[str, Dict[str, object]] = {
+    "nuclei": {
+        "order": ["go", "apt"],
+        "go": "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest",
+        "apt": "nuclei",
+    },
+    "subfinder": {
+        "order": ["go"],
+        "go": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
+    },
+    "httpx": {
+        "order": ["go"],
+        "go": "github.com/projectdiscovery/httpx/cmd/httpx@latest",
+    },
+    "ffuf": {
+        "order": ["go", "apt"],
+        "go": "github.com/ffuf/ffuf/v2@latest",
+        "apt": "ffuf",
+    },
+    "gobuster": {
+        "order": ["go", "apt"],
+        "go": "github.com/OJ/gobuster/v3@latest",
+        "apt": "gobuster",
+    },
+    "katana": {
+        "order": ["go"],
+        "go": "github.com/projectdiscovery/katana/cmd/katana@latest",
+    },
+    "sqlmap": {"order": ["apt", "pipx"], "apt": "sqlmap", "pipx": "sqlmap"},
+    "nikto": {"order": ["apt"], "apt": "nikto"},
+    "nmap": {
+        "order": ["apt", "dnf", "pacman", "brew"],
+        "apt": "nmap",
+        "dnf": "nmap",
+        "pacman": "nmap",
+        "brew": "nmap",
+    },
+    "whatweb": {"order": ["apt"], "apt": "whatweb"},
+    "wpscan": {"order": ["apt"], "apt": "wpscan"},
+    "hydra": {"order": ["apt"], "apt": "hydra"},
+    "dnsrecon": {"order": ["apt", "pipx"], "apt": "dnsrecon", "pipx": "dnsrecon"},
+    "amass": {
+        "order": ["apt", "go"],
+        "apt": "amass",
+        "go": "github.com/owasp-amass/amass/v4/...@master",
+    },
+    "feroxbuster": {"order": ["apt"], "apt": "feroxbuster"},
+    "masscan": {
+        "order": ["apt", "dnf", "pacman"],
+        "apt": "masscan",
+        "dnf": "masscan",
+        "pacman": "masscan",
+    },
 }
 
 
