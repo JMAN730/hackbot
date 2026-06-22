@@ -34,13 +34,23 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 /* ── Layout ───────────────────────────────────────────────────────────────── */
 .app-frame{display:flex;flex-direction:column;height:100vh;width:100vw}
 .app{display:flex;flex:1;overflow:hidden}
-.sidebar{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sidebar{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:width .18s ease,min-width .18s ease}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.app.sidebar-collapsed .sidebar{width:60px;min-width:60px}
+.app.sidebar-collapsed .logo{padding:12px 8px;justify-content:center;flex-direction:column;gap:8px}
+.app.sidebar-collapsed .logo-brand h1,.app.sidebar-collapsed .logo-brand span,.app.sidebar-collapsed .nav-section-title,.app.sidebar-collapsed .nav-btn span:not(.icon),.app.sidebar-collapsed .sidebar-footer{display:none}
+.app.sidebar-collapsed .logo-brand img{margin-right:0!important}
+.app.sidebar-collapsed .nav{padding:8px}
+.app.sidebar-collapsed .nav-btn{justify-content:center;padding:12px}
+.app.sidebar-collapsed .sidebar-toggle{width:32px;height:28px;justify-content:center}
 
 /* ── Sidebar ──────────────────────────────────────────────────────────────── */
-.logo{padding:20px;border-bottom:1px solid var(--border);text-align:center}
-.logo h1{font-size:1.3rem;color:var(--green);letter-spacing:1px}
-.logo span{font-size:.75rem;color:var(--text-dim)}
+.logo{padding:16px 12px 16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.logo-brand{display:flex;align-items:center;gap:8px;min-width:0}
+.logo h1{font-size:1.3rem;color:var(--green);letter-spacing:1px;white-space:nowrap}
+.logo span{font-size:.75rem;color:var(--text-dim);white-space:nowrap}
+.sidebar-toggle{width:30px;height:30px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;line-height:1;transition:all .15s;flex-shrink:0}
+.sidebar-toggle:hover{border-color:var(--border2);background:var(--bg4);color:var(--text-bright)}
 
 .nav{flex:1;padding:12px;overflow-y:auto}
 .nav-section{margin-bottom:16px}
@@ -181,7 +191,10 @@ textarea#agentInput{min-height:56px}
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media(max-width:768px){
   .sidebar{width:60px;min-width:60px}
-  .sidebar .logo h1,.sidebar .logo span,.nav-section-title,.nav-btn span:not(.icon),.sidebar-footer{display:none}
+  .logo{padding:12px 8px;justify-content:center;flex-direction:column;gap:8px}
+  .sidebar .logo-brand h1,.sidebar .logo-brand span,.nav-section-title,.nav-btn span:not(.icon),.sidebar-footer{display:none}
+  .sidebar .logo-brand img{margin-right:0!important}
+  .nav{padding:8px}
   .nav-btn{justify-content:center;padding:12px}
   .titlebar-title span.full{display:none}
 }
@@ -213,17 +226,22 @@ textarea#agentInput{min-height:56px}
   </div>
 </div>
 
-<div class="app">
+<div class="app" id="appRoot">
 
 <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
-<div class="sidebar">
+<div class="sidebar" id="sidebar" aria-label="Primary navigation">
   <div class="logo">
-    <img src="{{ url_for('static', filename='logo.png') }}" alt="HackBot" style="width:40px;height:40px;border-radius:8px;margin-right:8px;vertical-align:middle">
-    <h1 style="display:inline;vertical-align:middle">HackBot</h1>
-    <span>v{{ version }}</span>
+    <div class="logo-brand">
+      <img src="{{ url_for('static', filename='logo.png') }}" alt="HackBot" style="width:40px;height:40px;border-radius:8px;margin-right:0;vertical-align:middle">
+      <h1>HackBot</h1>
+      <span>v{{ version }}</span>
+    </div>
+    <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="Collapse sidebar" aria-expanded="true" aria-controls="sidebarNav" onclick="toggleSidebar()" title="Collapse sidebar">
+      <span id="sidebarToggleIcon">&lsaquo;</span>
+    </button>
   </div>
 
-  <div class="nav">
+  <div class="nav" id="sidebarNav">
     <div class="nav-section">
       <div class="nav-section-title">Modes</div>
       <button class="nav-btn active" data-panel="chat" onclick="switchPanel('chat')">
@@ -333,7 +351,7 @@ textarea#agentInput{min-height:56px}
       <div class="header-title">🤖 Agent Mode — <span id="agentTargetLabel">No active assessment</span></div>
       <div class="header-actions">
         <button class="btn btn-sm btn-primary" id="agentContinueBtn" onclick="continueAgent()" style="display:none">▶ Continue</button>
-        <button class="btn btn-sm" id="agentStepBtn" onclick="agentStep()" style="display:none">▶ Next Step</button>
+        <button class="btn btn-sm" id="agentStepBtn" onclick="agentStep()" style="display:none">▶ Step</button>
         <button class="btn btn-sm btn-danger" id="agentStopBtn" onclick="agentStop()" style="display:none">⏹ Stop</button>
         <button class="btn btn-sm" id="agentExportBtn" onclick="agentExport()" style="display:none">📄 Export</button>
         <button class="btn btn-sm" id="agentPdfBtn" onclick="agentExportPdf()" style="display:none">📕 PDF Report</button>
@@ -402,9 +420,9 @@ textarea#agentInput{min-height:56px}
         <div class="input-wrapper">
           <textarea id="agentInput" rows="2" placeholder="Guide the agent or type a command..." onkeydown="handleKey(event,'agent')"></textarea>
         </div>
-        <button class="send-btn" onclick="agentStep()">▶</button>
+        <button class="send-btn" id="agentSendBtn" onclick="agentStep()">▶</button>
       </div>
-      <div class="input-hint">Enter to send • /run &lt;command&gt; to execute a tool directly</div>
+      <div class="input-hint">Agent scans auto-run after Start • Press Stop to halt • Enter sends guidance when idle • /run &lt;command&gt; executes a tool directly</div>
     </div>
   </div>
 
@@ -984,8 +1002,12 @@ textarea#agentInput{min-height:56px}
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script>
 // ── State ───────────────────────────────────────────────────────────────────
+const SIDEBAR_COLLAPSED_KEY = 'hackbot.sidebar.collapsed';
 let currentPanel = 'chat';
 let agentRunning = false;
+let agentAutoRunActive = false;
+let agentActionInFlight = false;
+let agentStopRequested = false;
 let sendingChat = false;
 let sendingPlan = false;
 
@@ -1001,6 +1023,37 @@ function renderMd(text) {
 }
 
 // ── Panel Switching ─────────────────────────────────────────────────────────
+function applySidebarCollapsed(collapsed) {
+  const appRoot = document.getElementById('appRoot');
+  const toggle = document.getElementById('sidebarToggle');
+  const icon = document.getElementById('sidebarToggleIcon');
+  if (!appRoot || !toggle || !icon) return;
+
+  appRoot.classList.toggle('sidebar-collapsed', collapsed);
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+  toggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+  toggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  icon.innerHTML = collapsed ? '&rsaquo;' : '&lsaquo;';
+
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  } catch (e) {}
+}
+
+function toggleSidebar() {
+  const appRoot = document.getElementById('appRoot');
+  const collapsed = appRoot ? !appRoot.classList.contains('sidebar-collapsed') : false;
+  applySidebarCollapsed(collapsed);
+}
+
+function initSidebarState() {
+  let collapsed = false;
+  try {
+    collapsed = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+  } catch (e) {}
+  applySidebarCollapsed(collapsed);
+}
+
 function switchPanel(name) {
   currentPanel = name;
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -1082,6 +1135,7 @@ function toast(msg, type = '') {
 function streamSSE(url, body, container, { onDone, onMeta, onStep } = {}) {
   return new Promise((resolve) => {
     const area = typeof container === 'string' ? document.getElementById(container) : container;
+    const result = { ok: true, text: '', complete: false, error: null };
 
     // Create the assistant message
     const msgDiv = document.createElement('div');
@@ -1090,6 +1144,17 @@ function streamSSE(url, body, container, { onDone, onMeta, onStep } = {}) {
     area.appendChild(msgDiv);
     const bubble = msgDiv.querySelector('.msg-bubble');
     let fullText = '';
+    let settled = false;
+
+    function finish() {
+      if (settled) return;
+      settled = true;
+      result.text = fullText;
+      bubble.innerHTML = renderMd(fullText);
+      area.scrollTop = area.scrollHeight;
+      if (onDone) onDone(fullText, result);
+      resolve(result);
+    }
 
     fetch(url, {
       method: 'POST',
@@ -1097,9 +1162,11 @@ function streamSSE(url, body, container, { onDone, onMeta, onStep } = {}) {
       body: JSON.stringify(body),
     }).then(resp => {
       if (!resp.ok) {
-        return resp.json().then(data => {
-          bubble.innerHTML = renderMd(`**Error:** ${data.error || 'Request failed'}`);
-          resolve();
+        return resp.json().catch(() => ({})).then(data => {
+          result.ok = false;
+          result.error = data.error || 'Request failed';
+          bubble.innerHTML = renderMd(`**Error:** ${result.error}`);
+          resolve(result);
         });
       }
       const reader = resp.body.getReader();
@@ -1109,10 +1176,7 @@ function streamSSE(url, body, container, { onDone, onMeta, onStep } = {}) {
       function read() {
         reader.read().then(({ done, value }) => {
           if (done) {
-            bubble.innerHTML = renderMd(fullText);
-            area.scrollTop = area.scrollHeight;
-            if (onDone) onDone(fullText);
-            resolve(fullText);
+            finish();
             return;
           }
           buffer += decoder.decode(value, { stream: true });
@@ -1122,10 +1186,7 @@ function streamSSE(url, body, container, { onDone, onMeta, onStep } = {}) {
             if (!line.startsWith('data: ')) continue;
             const payload = line.slice(6);
             if (payload === '[DONE]') {
-              bubble.innerHTML = renderMd(fullText);
-              area.scrollTop = area.scrollHeight;
-              if (onDone) onDone(fullText);
-              resolve(fullText);
+              finish();
               return;
             }
             try {
@@ -1139,8 +1200,9 @@ function streamSSE(url, body, container, { onDone, onMeta, onStep } = {}) {
               if (data.step && onStep) {
                 onStep(data.step);
               }
-              if (data.complete !== undefined && onMeta) {
-                onMeta(data);
+              if (data.complete !== undefined) {
+                result.complete = Boolean(data.complete);
+                if (onMeta) onMeta(data);
               }
             } catch (e) {}
           }
@@ -1149,8 +1211,10 @@ function streamSSE(url, body, container, { onDone, onMeta, onStep } = {}) {
       }
       read();
     }).catch(err => {
+      result.ok = false;
+      result.error = err.message;
       bubble.innerHTML = renderMd(`**Error:** ${err.message}`);
-      resolve();
+      resolve(result);
     });
   });
 }
@@ -1204,7 +1268,43 @@ function clearChat() {
 }
 
 // ── Agent Mode ──────────────────────────────────────────────────────────────
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function updateAgentControls() {
+  const stepBtn = document.getElementById('agentStepBtn');
+  const sendBtn = document.getElementById('agentSendBtn');
+  const input = document.getElementById('agentInput');
+  const busy = agentActionInFlight || agentAutoRunActive;
+
+  if (stepBtn) {
+    stepBtn.disabled = busy;
+    stepBtn.textContent = agentAutoRunActive ? '⏳ Auto Running' : '▶ Step';
+    stepBtn.title = agentAutoRunActive
+      ? 'Assessment is running automatically. Press Stop to halt.'
+      : 'Run one agent step manually';
+  }
+  if (sendBtn) sendBtn.disabled = busy;
+  if (input) {
+    input.placeholder = busy
+      ? 'Agent is running automatically. Press Stop before adding guidance...'
+      : 'Guide the agent or type a command...';
+  }
+}
+
+async function refreshAgentRunningState() {
+  try {
+    const resp = await fetch('/api/agent/findings');
+    if (!resp.ok) return agentRunning;
+    const data = await resp.json();
+    if (typeof data.is_running === 'boolean') agentRunning = data.is_running;
+  } catch (e) {}
+  return agentRunning;
+}
+
 async function agentStart() {
+  if (agentActionInFlight) return;
   const target = document.getElementById('agentTarget').value.trim();
   if (!target) { toast('Target is required', 'error'); return; }
 
@@ -1226,30 +1326,113 @@ async function agentStart() {
   document.getElementById('agentTerminal').innerHTML = '';
   document.getElementById('agentThoughts').innerHTML = '';
   agentRunning = true;
+  agentAutoRunActive = false;
+  agentStopRequested = false;
+  agentActionInFlight = true;
+  updateAgentControls();
 
   addMsg('agentThoughts', 'system',
     `Starting assessment against <strong>${target}</strong>` +
     (scope ? ` | Scope: ${scope}` : ''), true);
 
-  await streamSSE('/api/agent/start',
+  const startResult = await streamSSE('/api/agent/start',
     { target, scope, instructions },
     'agentThoughts',
     { 
-      onDone: () => { checkTruncation('agent'); },
       onStep: renderAgentStep
     }
   );
+  agentActionInFlight = false;
+  updateAgentControls();
+
+  const stillRunning = await refreshAgentRunningState();
+  const truncated = await checkTruncation('agent');
+  if (startResult.ok && stillRunning && !truncated && !agentStopRequested) {
+    await startAgentAutoRun();
+  } else if (!startResult.ok) {
+    agentRunning = false;
+    updateAgentControls();
+  }
+}
+
+async function runAgentStep(message = '') {
+  if (agentActionInFlight) {
+    return { ok: false, complete: false, error: 'Agent request already in progress', text: '' };
+  }
+
+  hideContinueBanner('agent');
+  agentActionInFlight = true;
+  updateAgentControls();
+
+  let stepComplete = false;
+  const result = await streamSSE('/api/agent/step',
+    { message },
+    'agentThoughts',
+    {
+      onMeta: (data) => {
+        if (data.complete) {
+          stepComplete = true;
+          agentRunning = false;
+          toast('Assessment complete!', 'success');
+        }
+      },
+      onStep: renderAgentStep
+    }
+  );
+
+  agentActionInFlight = false;
+  if (result.complete || stepComplete) {
+    result.complete = true;
+    agentRunning = false;
+    agentAutoRunActive = false;
+  }
+  if (!result.ok) {
+    agentAutoRunActive = false;
+    toast(result.error || 'Agent step failed', 'error');
+  }
+  updateAgentControls();
+  return result;
+}
+
+async function startAgentAutoRun() {
+  if (agentAutoRunActive || agentActionInFlight || !agentRunning) return;
+
+  agentAutoRunActive = true;
+  agentStopRequested = false;
+  updateAgentControls();
+
+  while (agentAutoRunActive && agentRunning && !agentStopRequested) {
+    const stepResult = await runAgentStep('');
+    if (!stepResult.ok || stepResult.complete || !agentRunning || agentStopRequested) break;
+
+    const truncated = await checkTruncation('agent');
+    if (truncated) {
+      agentAutoRunActive = false;
+      toast('Agent response was truncated. Click Continue to resume.', 'error');
+      break;
+    }
+
+    await delay(300);
+  }
+
+  agentAutoRunActive = false;
+  updateAgentControls();
 }
 
 async function agentStep() {
   const input = document.getElementById('agentInput');
   const msg = input ? input.value.trim() : '';
+
+  if (agentAutoRunActive || agentActionInFlight) {
+    toast('Agent is already running. Press Stop before sending guidance.', 'error');
+    return;
+  }
+
   if (msg) {
     addMsg('agentThoughts', 'user', msg);
     input.value = '';
     input.style.height = 'auto';
   }
-  hideContinueBanner('agent');
 
   // Check for /run command
   if (msg.startsWith('/run ')) {
@@ -1271,20 +1454,13 @@ async function agentStep() {
     return;
   }
 
-  await streamSSE('/api/agent/step',
-    { message: msg },
-    'agentThoughts',
-    {
-      onMeta: (data) => {
-        if (data.complete) {
-          agentRunning = false;
-          toast('Assessment complete!', 'success');
-        }
-      },
-      onDone: () => { checkTruncation('agent'); },
-      onStep: renderAgentStep
-    }
-  );
+  if (!agentRunning) {
+    toast('No active assessment', 'error');
+    return;
+  }
+
+  const result = await runAgentStep(msg);
+  if (result.ok && !result.complete) await checkTruncation('agent');
 }
 
 function escapeHtml(text) {
@@ -1328,24 +1504,48 @@ function renderAgentStep(step) {
 }
 
 async function continueAgent() {
-  hideContinueBanner('agent');
+  if (agentActionInFlight) {
+    toast('Agent is already running. Press Stop before continuing manually.', 'error');
+    return;
+  }
 
-  await streamSSE('/api/agent/continue',
+  hideContinueBanner('agent');
+  const shouldResumeAutoRun = agentRunning && !agentStopRequested;
+  agentActionInFlight = true;
+  updateAgentControls();
+
+  const result = await streamSSE('/api/agent/continue',
     {},
     'agentThoughts',
     {
       onMeta: (data) => {
         if (data.complete) {
           agentRunning = false;
+          agentAutoRunActive = false;
           toast('Assessment complete!', 'success');
         }
-      },
-      onDone: () => { checkTruncation('agent'); }
+      }
     }
   );
+
+  agentActionInFlight = false;
+  if (result.complete) {
+    agentRunning = false;
+    agentAutoRunActive = false;
+  }
+  updateAgentControls();
+
+  const truncated = await checkTruncation('agent');
+  if (shouldResumeAutoRun && result.ok && !result.complete && !truncated) {
+    await startAgentAutoRun();
+  }
 }
 
 async function agentStop() {
+  agentStopRequested = true;
+  agentAutoRunActive = false;
+  updateAgentControls();
+
   try {
     const resp = await fetch('/api/agent/stop', { method: 'POST' });
     const data = await resp.json();
@@ -1355,6 +1555,8 @@ async function agentStop() {
     toast('Assessment stopped', 'success');
   } catch (e) {
     toast('Failed to stop: ' + e.message, 'error');
+  } finally {
+    updateAgentControls();
   }
 }
 
@@ -1568,10 +1770,14 @@ async function checkTruncation(mode) {
     const data = await resp.json();
     if (data.truncated) {
       showContinueBanner(mode);
+      return true;
     } else {
       hideContinueBanner(mode);
+      return false;
     }
-  } catch (e) {}
+  } catch (e) {
+    return false;
+  }
 }
 
 function showContinueBanner(mode) {
@@ -3286,6 +3492,7 @@ async function checkStatus() {
 }
 
 // ── Init ────────────────────────────────────────────────────────────────────
+initSidebarState();
 checkStatus();
 setInterval(checkStatus, 30000);
 document.getElementById('userInput').focus();

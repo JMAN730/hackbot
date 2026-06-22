@@ -14,7 +14,7 @@ The GUI is built with Flask + pywebview and provides every feature available in 
 
 ## Sidebar Navigation
 
-The GUI has a left sidebar with **16 panels** organized in 3 sections:
+The GUI has a left sidebar with **16 panels** organized in 3 sections. Use the sidebar toggle in the logo header to collapse the navigation to an icon rail; the GUI remembers the collapsed/expanded preference.
 
 ### Modes
 | Panel | Icon | Description |
@@ -78,10 +78,11 @@ Autonomous security testing with real tool execution and zero-day discovery.
 | Target input | IP address, domain, or URL to assess |
 | Scope field | Define assessment scope (optional) |
 | Instructions field | Specific focus areas (optional) |
-| Start button | Begin autonomous assessment |
+| Start button | Begin autonomous assessment and auto-run steps until completion, stop, truncation, or error |
 | Run command box | Execute a manual tool command |
-| Step button | Execute next agent step |
-| Stop button | Halt the assessment |
+| Step button | Execute one manual agent step when auto-run is not active |
+| Stop button | Halt the assessment and prevent additional auto-run steps |
+| Continue button | Appears when an agent response was truncated; click to continue and resume auto-run |
 | Findings section | Shows discovered vulnerabilities |
 | Export buttons | HTML, Markdown, JSON, PDF report export |
 | Remediate button | Generate fix commands for findings |
@@ -95,10 +96,12 @@ Autonomous security testing with real tool execution and zero-day discovery.
 **How to use:**
 1. Enter a target (e.g., `10.0.0.1` or `example.com`)
 2. Optionally set scope and instructions
-3. Click "Start" — the agent autonomously runs tools and analyzes results
+3. Click "Start" — the agent automatically continues through each step without repeated clicks
 4. Watch the streaming output as tools execute — zero-day signals auto-appear
-5. Click "Findings" to see discovered vulnerabilities (including zero-day candidates)
-6. Click "Export" or "PDF" to generate reports
+5. Click "Stop" to halt auto-run before adding manual guidance or ending the assessment
+6. If a response is cut off, click "Continue"; auto-run resumes after the continuation completes
+7. Click "Findings" to see discovered vulnerabilities (including zero-day candidates)
+8. Click "Export" or "PDF" to generate reports
 
 ---
 
