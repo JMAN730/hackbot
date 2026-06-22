@@ -17,6 +17,12 @@ from hackbot.config import (
     _deep_merge,
     _merge_allowed_tools,
     load_config,
+    reconcile_keys,
+    save_config,
+    add_key,
+    remove_key,
+    set_active_key,
+    mask_key,
 )
 
 
@@ -153,3 +159,128 @@ def test_load_config_migrates_allowed_tools_from_old_file(tmp_path, monkeypatch)
     assert "msfconsole" in cfg.agent.allowed_tools
     assert "wifite" in cfg.agent.allowed_tools
     assert "aircrack-ng" in cfg.agent.allowed_tools
+
+
+def test_reconcile_seeds_pool_from_single_key():
+    ai = {"api_key": "sk-a", "api_keys": []}
+    reconcile_keys(ai)
+    assert ai["api_keys"] == ["sk-a"]
+    assert ai["api_key"] == "sk-a"
+
+
+def test_reconcile_active_is_pool_first():
+    ai = {"api_key": "", "api_keys": ["sk-a", "sk-b"]}
+    reconcile_keys(ai)
+    assert ai["api_key"] == "sk-a"
+    assert ai["api_keys"][0] == ai["api_key"]
+
+
+def test_reconcile_env_key_prepended_and_deduped():
+    ai = {"api_key": "sk-env", "api_keys": ["sk-a", "sk-env", "sk-b"]}
+    reconcile_keys(ai)
+    assert ai["api_keys"] == ["sk-env", "sk-a", "sk-b"]
+    assert ai["api_key"] == "sk-env"
+
+
+def test_reconcile_empty_pool():
+    ai = {"api_key": "", "api_keys": []}
+    reconcile_keys(ai)
+    assert ai["api_keys"] == []
+    assert ai["api_key"] == ""
+
+
+def test_api_keys_round_trip(tmp_path, monkeypatch):
+    import hackbot.config as cfgmod
+    monkeypatch.setattr(cfgmod, "CONFIG_FILE", tmp_path / "config.yaml")
+    for var in (
+        "DEEPSEEK_API_KEY", "OPENAI_API_KEY", "HACKBOT_API_KEY", "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY",
+        "MISTRAL_API_KEY", "TOGETHER_API_KEY", "OPENROUTER_API_KEY",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+    cfg = cfgmod.HackBotConfig()
+    cfg.ai.provider = "deepseek"
+    cfg.ai.api_keys = ["sk-a", "sk-b"]
+    cfg.ai.api_key = "sk-a"
+    cfgmod.save_config(cfg)
+
+    loaded = cfgmod.load_config()
+    assert loaded.ai.api_keys == ["sk-a", "sk-b"]
+    assert loaded.ai.api_key == "sk-a"
+
+
+def test_add_key_appends_and_dedupes():
+    cfg = AIConfig(provider="deepseek", api_key="sk-a", api_keys=["sk-a"])
+    add_key(cfg, "sk-b")
+    assert cfg.api_keys == ["sk-a", "sk-b"]
+    add_key(cfg, "sk-b")  # duplicate is a no-op
+    assert cfg.api_keys == ["sk-a", "sk-b"]
+    assert cfg.api_key == "sk-a"  # active unchanged
+
+
+def test_add_key_seeds_active_when_empty():
+    cfg = AIConfig(provider="deepseek", api_key="", api_keys=[])
+    add_key(cfg, "sk-a")
+    assert cfg.api_keys == ["sk-a"]
+    assert cfg.api_key == "sk-a"
+
+
+def test_remove_active_key_promotes_next():
+    cfg = AIConfig(provider="deepseek", api_key="sk-a", api_keys=["sk-a", "sk-b"])
+    removed = remove_key(cfg, 0)
+    assert removed == "sk-a"
+    assert cfg.api_keys == ["sk-b"]
+    assert cfg.api_key == "sk-b"
+
+
+def test_remove_nonactive_key_keeps_active():
+    cfg = AIConfig(provider="deepseek", api_key="sk-a", api_keys=["sk-a", "sk-b"])
+    removed = remove_key(cfg, 1)
+    assert removed == "sk-b"
+    assert cfg.api_keys == ["sk-a"]
+    assert cfg.api_key == "sk-a"
+
+
+def test_remove_key_bad_index_raises():
+    cfg = AIConfig(api_keys=["sk-a"])
+    with pytest.raises(IndexError):
+        remove_key(cfg, 5)
+
+
+def test_remove_key_negative_index_raises():
+    # /key remove 0 maps to index -1; that must error, not pop the last key.
+    cfg = AIConfig(api_keys=["sk-a", "sk-b"])
+    with pytest.raises(IndexError):
+        remove_key(cfg, -1)
+    assert cfg.api_keys == ["sk-a", "sk-b"]  # unchanged
+
+
+def test_remove_last_key_empties_pool():
+    cfg = AIConfig(api_key="sk-a", api_keys=["sk-a"])
+    remove_key(cfg, 0)
+    assert cfg.api_keys == []
+    assert cfg.api_key == ""
+
+
+def test_set_active_key_moves_to_front():
+    cfg = AIConfig(provider="deepseek", api_key="sk-a", api_keys=["sk-a", "sk-b"])
+    set_active_key(cfg, "sk-b")
+    assert cfg.api_keys == ["sk-b", "sk-a"]
+    assert cfg.api_key == "sk-b"
+
+
+def test_set_active_key_new_key_inserts_front():
+    cfg = AIConfig(provider="deepseek", api_key="sk-a", api_keys=["sk-a"])
+    set_active_key(cfg, "sk-new")
+    assert cfg.api_keys == ["sk-new", "sk-a"]
+    assert cfg.api_key == "sk-new"
+
+
+def test_mask_key():
+    assert mask_key("sk-1234567890abcd") == "sk-12…abcd"
+    assert mask_key("short") == "sho…"
+    assert mask_key("") == "(empty)"
+    # boundary: len 8 uses the short branch, len 9 uses the long branch
+    assert mask_key("12345678") == "123…"
+    assert mask_key("123456789") == "12345…6789"

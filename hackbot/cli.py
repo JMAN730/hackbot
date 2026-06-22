@@ -74,6 +74,12 @@ from hackbot.ui import (
 load_dotenv()
 
 
+PROVIDER_ALIASES = {
+    "deep": "deepseek",
+    "deepseek": "deepseek",
+}
+
+
 def _should_block_root_gui_launch() -> bool:
     """Return True if GUI launch should be blocked due to root/sudo context.
 
@@ -133,6 +139,14 @@ class HackBotApp:
             print_finding(f.title, f.severity.value, f.description)
         elif step.action == "report":
             print_success(step.description)
+
+    def _rebuild_ai_engine(self) -> None:
+        self.engine = AIEngine(self.config.ai)
+        self.chat.engine = self.engine
+        self.plan.engine = self.engine
+        if self.agent:
+            self.agent.engine = self.engine
+            self.agent.summarizer.engine = self.engine
 
     def _on_confirm(self, command: str, reason: str) -> bool:
         """Handle confirmation for risky commands."""
@@ -492,15 +506,35 @@ class HackBotApp:
 
     def _set_key(self, key: str) -> bool:
         if not key:
-            print_error("Usage: /key <api-key>")
+            print_error("Usage: /key <api-key>  or  /key deepseek <api-key>")
             return True
+
+        key_parts = key.split(maxsplit=1)
+        requested_provider = PROVIDER_ALIASES.get(key_parts[0].lower())
+        if requested_provider:
+            if len(key_parts) == 1:
+                print_error(f"Usage: /key {key_parts[0]} <api-key>")
+                print_info(f"Or run: /provider {requested_provider}  then  /key <api-key>")
+                return True
+
+            preset = PROVIDERS[requested_provider]
+            self.config.ai.provider = requested_provider
+            if preset["models"]:
+                self.config.ai.model = preset["models"][0]["id"]
+            self.config.ai.base_url = ""
+            key = key_parts[1].strip()
+            if not key:
+                print_error(f"Usage: /key {key_parts[0]} <api-key>")
+                return True
+            print_info(f"Provider: {preset['name']}")
+
+        if key.lower() in PROVIDER_ALIASES:
+            print_error(f"Usage: /key {key} <api-key>")
+            print_info(f"Or run: /provider {PROVIDER_ALIASES[key.lower()]}  then  /key <api-key>")
+            return True
+
         self.config.ai.api_key = key
-        self.engine = AIEngine(self.config.ai)
-        self.chat.engine = self.engine
-        self.plan.engine = self.engine
-        if self.agent:
-            self.agent.engine = self.engine
-            self.agent.summarizer.engine = self.engine
+        self._rebuild_ai_engine()
 
         # Validate the key before saving
         print_info("Validating API key...")
@@ -730,12 +764,7 @@ class HackBotApp:
             self.config.ai.model = preset["models"][0]["id"]
         # Clear base_url so engine uses preset
         self.config.ai.base_url = ""
-        self.engine = AIEngine(self.config.ai)
-        self.chat.engine = self.engine
-        self.plan.engine = self.engine
-        if self.agent:
-            self.agent.engine = self.engine
-            self.agent.summarizer.engine = self.engine
+        self._rebuild_ai_engine()
         save_config(self.config)
         print_success(
             f"Provider: {preset['name']}\n"
