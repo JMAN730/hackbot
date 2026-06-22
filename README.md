@@ -122,9 +122,10 @@ sudo apt install -y python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-webkit2-4.
 - **Dark cybersecurity theme** with a polished, modern interface
 - **Real-time streaming** — AI responses stream in via Server-Sent Events (SSE)
 - **All modes accessible** — Chat, Agent, Plan, CVE Lookup, OSINT, Topology, Compliance panels
+- **Collapsible sidebar** — Minimize navigation to an icon rail with the preference remembered locally
 - **Session management** — Browse, restore, and delete saved sessions from the sidebar
 - **Provider switching** — Change AI provider and model on the fly from the settings panel
-- **Agent control panel** — Start assessments, step through actions, view findings live
+- **Agent control panel** — Start assessments that auto-run steps, stop them on demand, and view findings live
 - **CVE search panel** — Search by keyword, CVE ID, or browse exploits with severity filters
 - **OSINT panel** — Run subdomain enumeration, DNS lookups, WHOIS, and tech fingerprinting
 - **Topology visualization** — Paste nmap/masscan output and see an interactive D3.js network graph
