@@ -282,6 +282,16 @@ You are equipped with a ZeroDayEngine that provides:
    Sends N simultaneous requests using thread barriers and analyzes response differences
    to detect race conditions.
 
+10. **Autonomous Tool Installation** — If a tool you need is not installed (a command
+   returns "Tool not found"), you can install it autonomously:
+   ```json
+   {"action": "install", "tool": "<tool_name>", "explanation": "<why you need it>"}
+   ```
+   Only allowlisted security tools with a known install recipe can be installed.
+   When safe_mode is on, the user confirms each install. After a successful install,
+   re-run the original command. If the install fails or no recipe exists, adapt and
+   use a different tool.
+
 ZERO-DAY METHODOLOGY:
 - After initial recon, identify services with unusual behaviors or outdated versions
 - Use nuclei with community templates for latest vulnerability checks

@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from hackbot.config import LOGS_DIR, resolve_tool_path
+from hackbot.config import INSTALL_DRIVERS, LOGS_DIR, resolve_tool_path
 
 # Lazy reference — filled at runtime to avoid circular imports
 _plugin_manager = None
@@ -348,7 +348,9 @@ class ToolRunner:
                 return tok
         return None
 
-    def validate_command(self, command: str) -> tuple[bool, str]:
+    def validate_command(
+        self, command: str, allow_install_drivers: bool = False,
+    ) -> tuple[bool, str]:
         """
         Validate a command for safety.
         Returns (is_safe, reason).
@@ -389,7 +391,9 @@ class ToolRunner:
 
         # Check if tool is allowed
         if not self.is_tool_allowed(tool):
-            return False, f"Tool '{tool}' is not in the allowed list"
+            driver_ok = allow_install_drivers and os.path.basename(tool).lower() in INSTALL_DRIVERS
+            if not driver_ok:
+                return False, f"Tool '{tool}' is not in the allowed list"
 
         # Check risky patterns in safe mode
         if self.safe_mode:
@@ -471,7 +475,10 @@ class ToolRunner:
         except Exception as e:
             return False, f"sudo check error: {e}"
 
-    def execute(self, command: str, tool_name: str = "", explanation: str = "") -> ToolResult:
+    def execute(
+        self, command: str, tool_name: str = "", explanation: str = "",
+        allow_install_drivers: bool = False,
+    ) -> ToolResult:
         """
         Execute a command synchronously with timeout and output capture.
         """
@@ -485,7 +492,9 @@ class ToolRunner:
         command = self._apply_sudo(command)
 
         # Validate
-        is_safe, reason = self.validate_command(command)
+        is_safe, reason = self.validate_command(
+            command, allow_install_drivers=allow_install_drivers,
+        )
 
         if not is_safe:
             return ToolResult(

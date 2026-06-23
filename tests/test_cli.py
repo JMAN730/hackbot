@@ -37,3 +37,24 @@ def test_key_deep_alias_requires_key_and_does_not_save(monkeypatch):
     assert app.config.ai.provider == "openai"
     assert app.config.ai.api_key == ""
     assert saved["called"] is False
+
+
+def test_install_tool_requires_argument():
+    app = HackBotApp(HackBotConfig())
+    assert app._install_tool("") is True  # returns True (stay in REPL), prints usage
+
+
+def test_install_tool_delegates_to_agent(monkeypatch):
+    app = HackBotApp(HackBotConfig())
+    captured = {}
+
+    class _StubAgent:
+        def _process_install_action(self, action):
+            captured["action"] = action
+            return "**[install]** SUCCESS — Installed nuclei"
+
+    app.agent = _StubAgent()
+    app.mode = "agent"
+    result = app._install_tool("nuclei")
+    assert result is True
+    assert captured["action"] == {"action": "install", "tool": "nuclei"}

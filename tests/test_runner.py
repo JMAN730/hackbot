@@ -378,3 +378,29 @@ def test_execute_async_parity_blocked(runner):
     result = asyncio.run(runner.execute_async("echo a ; echo b"))
     assert result.return_code == -1
     assert "metacharacter" in result.stderr.lower()
+
+
+# ── Install-driver bypass tests ──
+
+
+def test_install_driver_blocked_via_normal_execute():
+    r = ToolRunner(allowed_tools=["nmap"])  # managers NOT allowed
+    ok, reason = r.validate_command("apt-get install -y nmap")
+    assert ok is False and "not in the allowed list" in reason
+    ok, reason = r.validate_command("pip install requests")
+    assert ok is False
+
+
+def test_install_driver_allowed_with_flag():
+    r = ToolRunner(allowed_tools=["nmap"])
+    ok, reason = r.validate_command("apt-get install -y nmap", allow_install_drivers=True)
+    assert ok is True
+    ok, reason = r.validate_command("pip install requests", allow_install_drivers=True)
+    assert ok is True
+
+
+def test_install_driver_flag_does_not_allow_arbitrary_tool():
+    # The bypass only whitelists install drivers, not any tool.
+    r = ToolRunner(allowed_tools=["nmap"])
+    ok, reason = r.validate_command("evilbinary --pwn", allow_install_drivers=True)
+    assert ok is False
