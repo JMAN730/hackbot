@@ -2,16 +2,28 @@
 
 import asyncio
 import platform
+import shlex
+import subprocess
+import sys
+
 import pytest
 
-from hackbot.core.runner import ToolRunner, ToolResult, BLOCKED_COMMANDS
+from hackbot.core.runner import ToolResult, ToolRunner
+
+
+def _python_print_command(text):
+    """Build a shell-free command that prints text using the active Python."""
+    args = [sys.executable, "-c", f"print({text!r})"]
+    if platform.system() == "Windows":
+        return subprocess.list2cmdline(args)
+    return shlex.join(args)
 
 
 @pytest.fixture
 def runner():
     """Create a tool runner with test configuration."""
     return ToolRunner(
-        allowed_tools=["echo", "cat", "ls", "nmap", "python3", "curl", "ping"],
+        allowed_tools=["echo", "cat", "ls", "nmap", "python3", sys.executable, "curl", "ping"],
         timeout=10,
         safe_mode=True,
         auto_confirm=False,
@@ -41,7 +53,7 @@ def test_blocked_commands(runner):
 
 def test_execute_simple_command(runner):
     """Test executing a simple command."""
-    result = runner.execute("echo hackbot_test", tool_name="echo")
+    result = runner.execute(_python_print_command("hackbot_test"), tool_name="python")
     assert result.success
     assert "hackbot_test" in result.stdout
     assert result.return_code == 0

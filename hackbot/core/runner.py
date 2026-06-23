@@ -319,6 +319,23 @@ class ToolRunner:
         return candidate
 
     @staticmethod
+    def _strip_wrapping_quotes(value: str) -> str:
+        """Remove one layer of matching shell quotes from a token."""
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            return value[1:-1]
+        return value
+
+    @staticmethod
+    def _split_command(command: str) -> List[str]:
+        """Split command text for validation without invoking a shell."""
+        if platform.system() == "Windows":
+            return [
+                ToolRunner._strip_wrapping_quotes(part)
+                for part in shlex.split(command, posix=False)
+            ]
+        return shlex.split(command)
+
+    @staticmethod
     def _contains_shell_operators(command: str) -> Optional[str]:
         """Return the offending marker if *command* contains shell command
         substitution or a standalone shell-operator token, else None.
@@ -339,7 +356,7 @@ class ToolRunner:
             return "$("
 
         try:
-            tokens = shlex.split(command)
+            tokens = ToolRunner._split_command(command)
         except ValueError:
             return "<unparseable>"
 
@@ -379,7 +396,7 @@ class ToolRunner:
 
         # Extract tool name (skip 'sudo' prefix for validation)
         try:
-            parts = shlex.split(command) if platform.system() != "Windows" else command.split()
+            parts = self._split_command(command)
         except ValueError:
             return False, "Invalid command: unbalanced quotes"
         if not parts:
@@ -433,11 +450,14 @@ class ToolRunner:
         Returns (ok, message).  Sets ``_sudo_validated`` on success so the
         check is only performed once per runner lifetime.
         """
-        if not self.sudo_mode or platform.system() == "Windows":
+        if not self.sudo_mode:
             return True, "sudo not required"
 
         if self._sudo_validated:
             return True, "sudo already validated"
+
+        if platform.system() == "Windows":
+            return True, "sudo not required"
 
         try:
             if self.sudo_password:
