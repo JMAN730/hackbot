@@ -96,6 +96,12 @@ def test_system_prompts_exist():
     assert len(SYSTEM_PROMPT_PLAN) > 100
 
 
+def test_agent_prompt_documents_install_action():
+    """Test that the agent system prompt documents the install action."""
+    assert '"action": "install"' in SYSTEM_PROMPT_AGENT
+    assert "Tool not found" in SYSTEM_PROMPT_AGENT
+
+
 # ── API Key Validation Tests ────────────────────────────────────────────────
 
 
