@@ -129,11 +129,14 @@ AI.
 - Installs execute through `ToolRunner`, so `validate_command`, `BLOCKED_COMMANDS`,
   and shell-operator rejection remain in force.
 - Package managers used as install drivers (`apt-get`, `dnf`, `pacman`, `brew`,
-  `pipx`, `pip`, `go`) are added to the allowlist **as install drivers only**.
-  Their argument vectors are constructed by the installer from the curated map —
-  never from raw LLM text — except in opt-in `allow_arbitrary_install` mode, where
-  the AI-named package string is still `shlex`-safe-validated and passed as a
-  single argument (no shell).
+  `pipx`, `pip`, `go`) are **NOT** in the global `agent.allowed_tools` list.
+  `ToolInstaller.install` runs them via a dedicated `allow_install_drivers`
+  bypass on `ToolRunner.validate_command`/`execute` that permits only the
+  binaries listed in `config.INSTALL_DRIVERS`, so a normal `execute` action
+  from the agent cannot invoke them. Their argument vectors are constructed by
+  the installer from the curated map — never from raw LLM text — except in
+  opt-in `allow_arbitrary_install` mode, where the AI-named package string is
+  still `shlex`-safe-validated and passed as a single argument (no shell).
 - Sudo handling stays centralized in `ToolRunner._apply_sudo`. The installer sets
   `needs_sudo` on the plan; the runner remains the single sudo authority.
 - `RISKY_PATTERNS` / `safe_mode` confirmation behavior is reused, not bypassed.
