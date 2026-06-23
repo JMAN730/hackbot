@@ -191,6 +191,7 @@ class HackBotApp:
             "/plan": lambda: self._switch_mode("plan"),
             "/config": lambda: self._show_config(),
             "/tools": lambda: self._show_tools(),
+            "/install": lambda: self._install_tool(args),
             "/model": lambda: self._set_model(args),
             "/key": lambda: self._set_key(args),
             "/provider": lambda: self._set_provider(args),
@@ -411,6 +412,23 @@ class HackBotApp:
     def _show_tools(self) -> bool:
         tools = detect_tools(self.config.agent.allowed_tools)
         show_tools_status(tools)
+        return True
+
+    def _install_tool(self, args: str) -> bool:
+        tool = args.strip()
+        if not tool:
+            print_error("Usage: /install <tool>")
+            return True
+        if self.mode != "agent" or not self.agent:
+            self.agent = AgentMode(
+                engine=self.engine,
+                config=self.config,
+                on_step=self._on_agent_step,
+                on_confirm=self._on_confirm,
+                on_output=self._on_tool_output,
+            )
+        result = self.agent._process_install_action({"action": "install", "tool": tool})
+        console.print(Markdown(result))
         return True
 
     def _set_model(self, model: str) -> bool:
@@ -2634,6 +2652,16 @@ def tools(ctx):
     config = ctx.obj["config"]
     tool_status = detect_tools(config.agent.allowed_tools)
     show_tools_status(tool_status)
+
+
+@main.command(name="install")
+@click.argument("tool")
+@click.pass_context
+def install_cmd(ctx, tool):
+    """Install a security tool that isn't present."""
+    config = ctx.obj["config"]
+    app = HackBotApp(config)
+    app._install_tool(tool)
 
 
 @main.command(name="update")
