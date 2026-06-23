@@ -105,6 +105,7 @@ class ToolInstaller:
             command_str,
             tool_name=plan.manager,
             explanation=f"Install {plan.tool}",
+            allow_install_drivers=True,
         )
         path = resolve_tool_path(plan.tool)
         success = result.success and path is not None

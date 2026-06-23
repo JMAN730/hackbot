@@ -135,13 +135,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "php",
             "gcc",
             "go",
-            # Package managers — used by ToolInstaller as install drivers only.
-            "apt-get",
-            "dnf",
-            "pacman",
-            "brew",
-            "pipx",
-            "pip",
         ],
     },
     "reporting": {
@@ -518,6 +511,12 @@ TOOL_ALIASES: Dict[str, List[str]] = {
         "smurf6",
     ],
 }
+
+# Package-manager binaries the ToolInstaller is permitted to invoke. These are
+# deliberately NOT in agent.allowed_tools so the agent cannot run them via a
+# normal `execute` action — only ToolInstaller.install() may, via the runner's
+# allow_install_drivers bypass.
+INSTALL_DRIVERS: List[str] = ["apt-get", "dnf", "pacman", "brew", "pipx", "pip", "go"]
 
 # Curated tool -> package recipes for autonomous installation.
 # `order` lists preferred managers; ToolInstaller picks the first one available

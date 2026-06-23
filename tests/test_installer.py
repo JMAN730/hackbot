@@ -67,8 +67,9 @@ class _FakeRunner:
         self._success = success
         self.commands = []
 
-    def execute(self, command, tool_name="", explanation=""):
+    def execute(self, command, tool_name="", explanation="", allow_install_drivers=False):
         self.commands.append(command)
+        self.last_allow_install_drivers = allow_install_drivers
         return ToolResult(
             tool=tool_name,
             command=command,
@@ -114,3 +115,11 @@ def test_install_fails_when_binary_still_missing(monkeypatch):
     res = ti.install(_PLAN)
     assert res.success is False
     assert res.path is None
+
+
+def test_install_passes_install_driver_flag(monkeypatch):
+    monkeypatch.setattr(inst, "resolve_tool_path", lambda t: "/usr/bin/nuclei")
+    runner = _FakeRunner(success=True)
+    ti = ToolInstaller(runner=runner)
+    ti.install(_PLAN)
+    assert runner.last_allow_install_drivers is True

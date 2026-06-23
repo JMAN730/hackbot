@@ -307,10 +307,16 @@ def test_install_map_entries_are_well_formed():
             assert mgr in recipe, f"{tool} order names {mgr} with no package"
 
 
-def test_install_managers_are_allowlisted():
+def test_install_managers_not_in_global_allowlist():
+    # Managers must NOT be globally execute-able; they are install-drivers only.
     allowed = set(DEFAULT_CONFIG["agent"]["allowed_tools"])
-    for mgr in ("apt-get", "dnf", "pacman", "brew", "pipx", "pip", "go"):
-        assert mgr in allowed, f"{mgr} must be allowlisted to run installs"
+    for mgr in ("apt-get", "dnf", "pacman", "brew", "pipx", "pip"):
+        assert mgr not in allowed, f"{mgr} must not be in the global allowlist"
+
+
+def test_install_drivers_constant():
+    from hackbot.config import INSTALL_DRIVERS
+    assert set(INSTALL_DRIVERS) == {"apt-get", "dnf", "pacman", "brew", "pipx", "pip", "go"}
 
 
 def test_allow_arbitrary_install_defaults_off():
