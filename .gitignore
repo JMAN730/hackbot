@@ -19,3 +19,7 @@ build/
 *~
 update/
 public/nvd api.txt
+
+# Superpowers planning artifacts (specs, plans, scratch)
+docs/superpowers/
+.superpowers/
